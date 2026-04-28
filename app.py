@@ -5,6 +5,7 @@ import numpy as np
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from PIL import Image, ImageDraw, ImageFilter, ImageChops
 import json
+import gc
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
@@ -188,10 +189,10 @@ def analyze():
         img = Image.open(file.stream).convert("RGB")
         width, height = img.size
         
-        # Prevent Out-Of-Memory on Render by resizing large images
-        MAX_DIM = 640
+        # Prevent Out-Of-Memory on Render by resizing to a small footprint
+        MAX_DIM = 320
         if width > MAX_DIM or height > MAX_DIM:
-            print(f"📏 Resizing image from {width}x{height} to {MAX_DIM}px max")
+            print(f"📏 Resizing image from {width}x{height} to {MAX_DIM}px max (Memory Safety)")
             img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
             width, height = img.size
 
@@ -276,7 +277,10 @@ def analyze():
         })
 
     except Exception as e:
+        print(f"❌ Analysis Error: {e}")
         return jsonify({"error": str(e)}), 500
+    finally:
+        gc.collect() # Force free memory after each request
 
 @app.route("/detect-ai", methods=["POST"])
 def detect_ai():
@@ -288,7 +292,7 @@ def detect_ai():
         img = Image.open(file.stream).convert("RGB")
         
         # Prevent Out-Of-Memory on Render by resizing large images
-        MAX_DIM = 640
+        MAX_DIM = 320
         if img.size[0] > MAX_DIM or img.size[1] > MAX_DIM:
             print(f"📏 Resizing AI image to {MAX_DIM}px")
             img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
