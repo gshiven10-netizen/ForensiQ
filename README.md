@@ -34,8 +34,8 @@ The ELA-processed image is fed into a **Convolutional Neural Network (CNN)**:
 
 ## 🛠️ Tech Stack
 
-- **Backend**: Python 3.8+, Flask
-- **Machine Learning**: TensorFlow 2.x, Keras
+- **Backend**: Python 3.10, Flask
+- **Machine Learning**: TensorFlow 2.15.0 (Keras 2)
 - **Image Processing**: Pillow (PIL), NumPy, OpenCV
 - **Frontend**: HTML5, Vanilla CSS3 (Glassmorphism), Modern JavaScript
 
