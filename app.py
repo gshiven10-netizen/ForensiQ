@@ -18,6 +18,11 @@ model = None
 def load_model():
     global model, MODEL_LOADED
     try:
+        import os
+        os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+        os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+        os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+        
         import tensorflow as tf
         from tensorflow.keras.models import load_model as tf_load_model
         

@@ -895,7 +895,15 @@ function analyzeImage() {
   fd.append('image', forgeryFile);
 
   fetch('/analyze', { method: 'POST', body: fd })
-    .then(r => r.json())
+    .then(async r => {
+      const isJson = r.headers.get('content-type')?.includes('application/json');
+      if (!r.ok) {
+        const errText = isJson ? (await r.json()).error : await r.text();
+        throw new Error(`Server Error (${r.status}): ${errText.slice(0, 100)}...`);
+      }
+      if (!isJson) throw new Error("Server returned an invalid non-JSON response.");
+      return r.json();
+    })
     .then(data => {
       clearInterval(interval);
       loader.classList.remove('show');
@@ -1010,7 +1018,15 @@ function analyzeAI() {
   fd.append('image', aiFile);
 
   fetch('/detect-ai', { method: 'POST', body: fd })
-    .then(r => r.json())
+    .then(async r => {
+      const isJson = r.headers.get('content-type')?.includes('application/json');
+      if (!r.ok) {
+        const errText = isJson ? (await r.json()).error : await r.text();
+        throw new Error(`Server Error (${r.status}): ${errText.slice(0, 100)}...`);
+      }
+      if (!isJson) throw new Error("Server returned an invalid non-JSON response.");
+      return r.json();
+    })
     .then(data => {
       loader.classList.remove('show');
       if (data.error) { alert('Error: ' + data.error); return; }
