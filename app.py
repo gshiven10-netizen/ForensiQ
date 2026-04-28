@@ -36,30 +36,37 @@ def load_model():
         base_dir = os.path.dirname(os.path.abspath(__file__))
         weights_path = os.path.join(base_dir, "weights.weights.h5")
         
-        print(f"🔍 Loading model weights from: {weights_path}")
+        print(f"🔍 Loading model from: {weights_path}")
         
         if os.path.exists(weights_path):
             try:
-                # Use manual architecture to save memory (avoids loading optimizer state, etc.)
-                print("🏗️ Reconstructing EfficientNet-like architecture...")
-                model = tf.keras.Sequential([
-                    tf.keras.layers.Input(shape=(128, 128, 3)),
-                    tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
-                    tf.keras.layers.MaxPooling2D((2, 2)),
-                    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-                    tf.keras.layers.MaxPooling2D((2, 2)),
-                    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
-                    tf.keras.layers.MaxPooling2D((2, 2)),
-                    tf.keras.layers.Flatten(),
-                    tf.keras.layers.Dense(128, activation='relu'),
-                    tf.keras.layers.Dense(2, activation='softmax')
-                ])
-                model.load_weights(weights_path, skip_mismatch=True, by_name=True)
+                # Try loading with custom objects to bypass quantization_config error
+                # compile=False saves memory by not loading the optimizer
+                model = tf_load_model(weights_path, custom_objects={'Dense': CompatibleDense}, compile=False)
                 MODEL_LOADED = True
-                print("✅ Model weights loaded into architecture successfully")
+                print("✅ Model loaded successfully")
             except Exception as e:
-                print(f"⚠️ Model weight loading failed: {e}")
-                MODEL_LOADED = False
+                print(f"ℹ️ Full load failed: {e}. Trying architecture fallback...")
+                try:
+                    # Fallback: Manually build architecture if full load fails
+                    model = tf.keras.Sequential([
+                        tf.keras.layers.Input(shape=(128, 128, 3)),
+                        tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
+                        tf.keras.layers.MaxPooling2D((2, 2)),
+                        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+                        tf.keras.layers.MaxPooling2D((2, 2)),
+                        tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+                        tf.keras.layers.MaxPooling2D((2, 2)),
+                        tf.keras.layers.Flatten(),
+                        tf.keras.layers.Dense(128, activation='relu'),
+                        tf.keras.layers.Dense(2, activation='softmax')
+                    ])
+                    model.load_weights(weights_path)
+                    MODEL_LOADED = True
+                    print("✅ Model weights loaded into fallback architecture")
+                except Exception as e_inner:
+                    print(f"❌ All loading methods failed: {e_inner}")
+                    MODEL_LOADED = False
         else:
             print(f"❌ Weights file NOT found at {weights_path}")
             MODEL_LOADED = False
