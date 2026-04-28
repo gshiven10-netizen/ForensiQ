@@ -21,7 +21,6 @@ def load_model():
         import tensorflow as tf
         from tensorflow.keras.models import load_model as tf_load_model
         
-        # Use absolute path to ensure we find the weights on Render
         base_dir = os.path.dirname(os.path.abspath(__file__))
         weights_path = os.path.join(base_dir, "weights.weights.h5")
         
@@ -29,13 +28,13 @@ def load_model():
         
         if os.path.exists(weights_path):
             print(f"📦 Weights file found ({os.path.getsize(weights_path)} bytes). Attempting to load...")
+            try:
                 # Try loading as a full model first (compile=False to avoid layer config issues)
                 model = tf_load_model(weights_path, compile=False)
                 MODEL_LOADED = True
                 print("✅ Model loaded successfully from weights.weights.h5")
             except Exception as e:
                 print(f"ℹ️ Could not load as full model: {e}. Trying architecture reconstruction...")
-                # Fallback: Manually build architecture and load weights
                 model = tf.keras.Sequential([
                     tf.keras.layers.Input(shape=(128, 128, 3)),
                     tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
