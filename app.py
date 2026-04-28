@@ -183,6 +183,11 @@ def analyze():
     try:
         img = Image.open(file.stream).convert("RGB")
         width, height = img.size
+        
+        # Prevent Out-Of-Memory on Render by resizing large images
+        MAX_DIM = 800
+        if width > MAX_DIM or height > MAX_DIM:
+            img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
 
         # Run prediction
         if MODEL_LOADED and model is not None:
@@ -273,6 +278,12 @@ def detect_ai():
     try:
         file = request.files["image"]
         img = Image.open(file.stream).convert("RGB")
+        
+        # Prevent Out-Of-Memory on Render by resizing large images
+        MAX_DIM = 800
+        if img.size[0] > MAX_DIM or img.size[1] > MAX_DIM:
+            img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
+            
         arr = np.array(img, dtype=np.float32)
 
         # Heuristic AI detection based on statistical properties
