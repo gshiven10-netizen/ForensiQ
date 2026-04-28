@@ -86,4 +86,4 @@ This tool is intended for educational and research purposes. While highly effect
 ## 🤝 Contributing
 Contributions are welcome! If you have ideas for improving the ELA algorithm or model architecture, feel free to open an issue or submit a pull request.
 
-**Developed by Antigravity AI**
+
