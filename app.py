@@ -6,12 +6,6 @@ import numpy as np
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from PIL import Image, ImageDraw, ImageFilter, ImageChops
 
-# Set TF env vars BEFORE importing tensorflow
-os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
-os.environ["TF_NUM_INTEROP_THREADS"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
@@ -19,12 +13,36 @@ UPLOAD_FOLDER = os.path.join('static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 MODEL_LOADED = False
-model = None
+ort_session = None  # ONNX Runtime session
 
 # ── Model Loading ─────────────────────────────────────────────────────────────
 
 def load_model():
-    global model, MODEL_LOADED
+    global ort_session, MODEL_LOADED
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    onnx_path = os.path.join(base_dir, "model.onnx")
+
+    # ── Try ONNX Runtime first (lightweight, ~50MB RAM) ──
+    if os.path.exists(onnx_path):
+        try:
+            import onnxruntime as ort
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = 1
+            opts.inter_op_num_threads = 1
+            ort_session = ort.InferenceSession(onnx_path, sess_options=opts,
+                                               providers=["CPUExecutionProvider"])
+            MODEL_LOADED = True
+            print(f"✅ ONNX model loaded ({os.path.getsize(onnx_path)//1024} KB) — low-memory inference active")
+            return
+        except Exception as e:
+            print(f"⚠️  ONNX load failed: {e}")
+
+    # ── Fallback: TensorFlow ──
+    print("⚙️  Falling back to TensorFlow...")
+    os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+    os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+    os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
     try:
         import tensorflow as tf
         from tensorflow.keras.models import load_model as tf_load_model
@@ -35,44 +53,29 @@ def load_model():
                 kwargs.pop('quantization_config', None)
                 super().__init__(*args, **kwargs)
 
-        base_dir = os.path.dirname(os.path.abspath(__file__))
         weights_path = os.path.join(base_dir, "weights.weights.h5")
-
-        print(f"🔍 Loading model from: {weights_path}")
-
         if os.path.exists(weights_path):
-            try:
-                model = tf_load_model(weights_path, custom_objects={'Dense': CompatibleDense}, compile=False)
-                MODEL_LOADED = True
-                print("✅ Model loaded successfully")
-            except Exception as e:
-                print(f"ℹ️ Full load failed ({e}). Trying fallback architecture...")
-                try:
-                    import tensorflow as tf
-                    model = tf.keras.Sequential([
-                        tf.keras.layers.Input(shape=(128, 128, 3)),
-                        tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
-                        tf.keras.layers.MaxPooling2D((2, 2)),
-                        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-                        tf.keras.layers.MaxPooling2D((2, 2)),
-                        tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
-                        tf.keras.layers.MaxPooling2D((2, 2)),
-                        tf.keras.layers.Flatten(),
-                        tf.keras.layers.Dense(128, activation='relu'),
-                        tf.keras.layers.Dense(2, activation='softmax')
-                    ])
-                    model.load_weights(weights_path)
-                    MODEL_LOADED = True
-                    print("✅ Fallback model weights loaded")
-                except Exception as e2:
-                    print(f"❌ All loading methods failed: {e2}")
-                    MODEL_LOADED = False
+            model = tf_load_model(weights_path, custom_objects={'Dense': CompatibleDense}, compile=False)
+            # Wrap so we can use same call interface
+            ort_session = model
+            MODEL_LOADED = True
+            print("✅ TensorFlow model loaded (fallback)")
         else:
-            print(f"❌ Weights file NOT found at {weights_path}")
-            MODEL_LOADED = False
+            print("❌ No model file found")
     except Exception as e:
-        print(f"🚨 Unexpected error in load_model: {e}")
+        print(f"❌ TF fallback failed: {e}")
         MODEL_LOADED = False
+
+def run_inference(arr: np.ndarray) -> np.ndarray:
+    """Run model inference. Handles both ONNX and TF backends."""
+    import onnxruntime as ort
+    if isinstance(ort_session, ort.InferenceSession):
+        input_name = ort_session.get_inputs()[0].name
+        out = ort_session.run(None, {input_name: arr.astype(np.float32)})[0]
+    else:
+        # TF fallback
+        out = ort_session.predict(arr, verbose=0)
+    return out
 
 # Load synchronously before accepting requests
 load_model()
@@ -197,10 +200,10 @@ def analyze():
         print(f"📐 Image: {orig_w}x{orig_h} → {width}x{height}")
 
         # ── Neural prediction ──────────────────────────────────────────────
-        if MODEL_LOADED and model is not None:
-            print("🧠 Running inference...")
+        if MODEL_LOADED and ort_session is not None:
+            print("🧠 Running ONNX inference...")
             processed = preprocess_for_model(img)
-            prediction = model.predict(processed, verbose=0)[0]
+            prediction = run_inference(processed)[0]
             del processed
             raw_score = float(prediction[0])  # 0=Forged, 1=Authentic
             print(f"🎯 Raw score: {raw_score:.4f}")
