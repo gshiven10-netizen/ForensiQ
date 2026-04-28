@@ -70,7 +70,13 @@ def load_model():
         print(f"🚨 Unexpected error in load_model: {e}")
         MODEL_LOADED = False
 
-load_model()
+import threading
+
+def load_model_async():
+    """Load model in background to prevent startup timeouts."""
+    threading.Thread(target=load_model, daemon=True).start()
+
+load_model_async()
 
 def preprocess_image(img: Image.Image, quality=90, scale=10):
     """
