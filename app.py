@@ -21,48 +21,47 @@ def load_model():
         import tensorflow as tf
         from tensorflow.keras.models import load_model as tf_load_model
         
-        weights_path = "weights.weights.h5"
+        # Use absolute path to ensure we find the weights on Render
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        weights_path = os.path.join(base_dir, "weights.weights.h5")
+        
+        print(f"🔍 Checking for model weights at: {weights_path}")
+        
         if os.path.exists(weights_path):
+            print(f"📦 Weights file found ({os.path.getsize(weights_path)} bytes). Attempting to load...")
             try:
                 # Try loading as a full model first
                 model = tf_load_model(weights_path)
                 MODEL_LOADED = True
                 print("✅ Model loaded successfully from weights.weights.h5")
-                print(f"Model Input Shape: {model.input_shape}")
             except Exception as e:
                 print(f"ℹ️ Could not load as full model: {e}. Trying architecture reconstruction...")
+                # Fallback: Manually build architecture and load weights
+                model = tf.keras.Sequential([
+                    tf.keras.layers.Input(shape=(128, 128, 3)),
+                    tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
+                    tf.keras.layers.MaxPooling2D((2, 2)),
+                    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+                    tf.keras.layers.MaxPooling2D((2, 2)),
+                    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+                    tf.keras.layers.MaxPooling2D((2, 2)),
+                    tf.keras.layers.Flatten(),
+                    tf.keras.layers.Dense(128, activation='relu'),
+                    tf.keras.layers.Dense(2, activation='softmax')
+                ])
                 try:
-                    from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-                    from tensorflow.keras.models import Model
-                    
-                    # Reconstruct the 128x128 architecture that matched the weights in testing
-                    model_input = Input(shape=(128, 128, 3))
-                    x = Conv2D(64, (3, 3), activation='relu')(model_input)
-                    x = MaxPooling2D((2, 2))(x)
-                    x = Conv2D(128, (3, 3), activation='relu')(x)
-                    x = MaxPooling2D((2, 2))(x)
-                    x = Conv2D(128, (3, 3), activation='relu')(x)
-                    x = MaxPooling2D((2, 2))(x)
-                    x = Flatten()(x)
-                    x = Dense(128, activation='relu')(x)
-                    x = Dropout(0.5)(x)
-                    x = Dense(32, activation='relu')(x)
-                    x = Dropout(0.5)(x)
-                    output = Dense(2, activation='sigmoid')(x)
-                    model = Model(model_input, output)
-                    
                     model.load_weights(weights_path)
                     MODEL_LOADED = True
-                    print("✅ Model weights loaded into reconstructed 128x128 architecture")
-                except Exception as e2:
+                    print("✅ Model weights loaded into reconstructed architecture")
+                except Exception as e_inner:
+                    print(f"⚠️ Model weight loading failed: {e_inner}")
                     MODEL_LOADED = False
-                    print(f"⚠️ Model load failed: {e2} — running in demo mode")
         else:
+            print(f"❌ Weights file NOT found at {weights_path}")
             MODEL_LOADED = False
-            print("⚠️ weights.weights.h5 not found — running in demo mode")
     except Exception as e:
+        print(f"🚨 Unexpected error in load_model: {e}")
         MODEL_LOADED = False
-        print(f"⚠️ Initialization error: {e} — running in demo mode")
 
 load_model()
 
