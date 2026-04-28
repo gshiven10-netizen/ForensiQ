@@ -190,12 +190,15 @@ def analyze():
         width, height = img.size
         
         # Prevent Out-Of-Memory on Render by resizing large images
-        MAX_DIM = 800
+        MAX_DIM = 640
         if width > MAX_DIM or height > MAX_DIM:
+            print(f"📏 Resizing image from {width}x{height} to {MAX_DIM}px max")
             img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
+            width, height = img.size
 
         # Run prediction
         if MODEL_LOADED and model is not None:
+            print("🧠 Running neural inference...")
             processed = preprocess_image(img)
             prediction = model.predict(processed, verbose=0)[0]
             
@@ -208,6 +211,7 @@ def analyze():
         # Model outputs: 0 = forged, 1 = authentic
         # Confidence is how sure we are of the predicted class
         # Calculate ELA discrepancy as a secondary signal
+        print("🔍 Calculating ELA heatmaps...")
         marked = detect_ela_regions(img)
         
         # Calculate ELA density (percentage of high-discrepancy blocks)
@@ -285,10 +289,12 @@ def detect_ai():
         img = Image.open(file.stream).convert("RGB")
         
         # Prevent Out-Of-Memory on Render by resizing large images
-        MAX_DIM = 800
+        MAX_DIM = 640
         if img.size[0] > MAX_DIM or img.size[1] > MAX_DIM:
+            print(f"📏 Resizing AI image to {MAX_DIM}px")
             img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
             
+        print("🤖 Running AI statistical analysis...")
         arr = np.array(img, dtype=np.float32)
 
         # Heuristic AI detection based on statistical properties
