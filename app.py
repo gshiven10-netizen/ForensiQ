@@ -29,9 +29,8 @@ def load_model():
         
         if os.path.exists(weights_path):
             print(f"📦 Weights file found ({os.path.getsize(weights_path)} bytes). Attempting to load...")
-            try:
-                # Try loading as a full model first
-                model = tf_load_model(weights_path)
+                # Try loading as a full model first (compile=False to avoid layer config issues)
+                model = tf_load_model(weights_path, compile=False)
                 MODEL_LOADED = True
                 print("✅ Model loaded successfully from weights.weights.h5")
             except Exception as e:
