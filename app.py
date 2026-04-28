@@ -36,38 +36,30 @@ def load_model():
         base_dir = os.path.dirname(os.path.abspath(__file__))
         weights_path = os.path.join(base_dir, "weights.weights.h5")
         
-        print(f"🔍 Checking for model weights at: {weights_path}")
+        print(f"🔍 Loading model weights from: {weights_path}")
         
         if os.path.exists(weights_path):
-            print(f"📦 Weights file found ({os.path.getsize(weights_path)} bytes). Attempting to load...")
             try:
-                # Try loading with custom objects to bypass quantization_config error
-                model = tf_load_model(weights_path, custom_objects={'Dense': CompatibleDense}, compile=False)
-                MODEL_LOADED = True
-                print("✅ Model loaded successfully using CompatibleDense workaround")
-            except Exception as e:
-                print(f"ℹ️ Could not load as full model: {e}. Trying architecture reconstruction...")
-                # Fallback: Manually build architecture
+                # Use manual architecture to save memory (avoids loading optimizer state, etc.)
+                print("🏗️ Reconstructing EfficientNet-like architecture...")
                 model = tf.keras.Sequential([
                     tf.keras.layers.Input(shape=(128, 128, 3)),
-                    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', name='conv2d'),
+                    tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
                     tf.keras.layers.MaxPooling2D((2, 2)),
-                    tf.keras.layers.Conv2D(64, (3, 3), activation='relu', name='conv2d_1'),
+                    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
                     tf.keras.layers.MaxPooling2D((2, 2)),
-                    tf.keras.layers.Conv2D(128, (3, 3), activation='relu', name='conv2d_2'),
+                    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
                     tf.keras.layers.MaxPooling2D((2, 2)),
                     tf.keras.layers.Flatten(),
-                    tf.keras.layers.Dense(128, activation='relu', name='dense'),
-                    tf.keras.layers.Dense(2, activation='softmax', name='dense_1')
+                    tf.keras.layers.Dense(128, activation='relu'),
+                    tf.keras.layers.Dense(2, activation='softmax')
                 ])
-                try:
-                    # Use skip_mismatch=True to be more robust
-                    model.load_weights(weights_path, skip_mismatch=True, by_name=True)
-                    MODEL_LOADED = True
-                    print("✅ Model weights loaded into reconstructed architecture")
-                except Exception as e_inner:
-                    print(f"⚠️ Model weight loading failed: {e_inner}")
-                    MODEL_LOADED = False
+                model.load_weights(weights_path, skip_mismatch=True, by_name=True)
+                MODEL_LOADED = True
+                print("✅ Model weights loaded into architecture successfully")
+            except Exception as e:
+                print(f"⚠️ Model weight loading failed: {e}")
+                MODEL_LOADED = False
         else:
             print(f"❌ Weights file NOT found at {weights_path}")
             MODEL_LOADED = False
